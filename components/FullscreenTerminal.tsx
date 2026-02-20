@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+
+const PHOSPHOR_COLOR = '#6bc4d4';
+const PHOSPHOR_DARK = '#2d6b75';
+const PHOSPHOR_GLOW = 'rgba(107, 196, 212, 0.4)';
 
 const SUGGESTED_COMMANDS = [
   'whoami',
@@ -52,7 +57,9 @@ export function FullscreenTerminal() {
   const [suggestionStep, setSuggestionStep] = useState(0);
   const promptSymbol = isBackdoorLoggedIn ? '#' : '$';
   const terminalRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const apertureDialogRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const cursorInterval = setInterval(() => {
@@ -63,11 +70,15 @@ export function FullscreenTerminal() {
   }, []);
 
   useEffect(() => {
-    // Focus on mount
-    if (terminalRef.current) {
-      terminalRef.current.focus();
-    }
+    inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (!showApertureDialog) {
+      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [showApertureDialog]);
 
   useEffect(() => {
     // Auto-scroll to bottom when content updates
@@ -112,6 +123,12 @@ export function FullscreenTerminal() {
     return () => clearTimeout(timer);
   }, [streamingLogIndex]);
 
+  const handleApertureYes = useCallback(() => {
+    setShowApertureDialog(false);
+    setTerminalHistory(prev => [...prev, 'Aperture open.', '']);
+    router.push('/aperture');
+  }, [router]);
+
   const handleApertureKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
@@ -119,9 +136,13 @@ export function FullscreenTerminal() {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       setShowApertureDialog(false);
-      setTerminalHistory(prev => [...prev, apertureSelection === 'yes' ? 'Aperture open.' : 'Aperture closed.', '']);
+      if (apertureSelection === 'yes') {
+        handleApertureYes();
+      } else {
+        setTerminalHistory(prev => [...prev, 'Aperture closed.', '']);
+      }
     }
-  }, [apertureSelection]);
+  }, [apertureSelection, handleApertureYes]);
 
   const getSuggestion = useCallback((input: string) => {
     if (!input) {
@@ -175,7 +196,7 @@ export function FullscreenTerminal() {
 
     switch (command.toLowerCase()) {
       case 'whoami':
-        stream(['Flynn'], () => setSuggestionStep(1));
+        stream(['Tomiwa'], () => setSuggestionStep(1));
         return;
       case 'uname -a':
         stream(['SolarOS 4.0.1 Generic_50823-02 sun4m i386', 'Unknown.Unknown'], () => setSuggestionStep(2));
@@ -243,7 +264,20 @@ export function FullscreenTerminal() {
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#000000' }}>
+    <div
+      className="relative w-screen h-screen overflow-hidden"
+      style={{
+        background: '#030405',
+        boxShadow: 'inset 0 0 100px rgba(0,0,0,0.9)',
+      }}
+    >
+      {/* CRT scanlines overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none z-20 opacity-[0.06]"
+        style={{
+          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 3px)',
+        }}
+      />
       {/* Aperture Clear Overlay */}
       {showApertureDialog && (
         <div
@@ -293,12 +327,11 @@ export function FullscreenTerminal() {
                 <button
                   onClick={() => {
                     setApertureSelection('yes');
-                    setShowApertureDialog(false);
-                    setTerminalHistory(prev => [...prev, 'Aperture open.', '']);
+                    handleApertureYes();
                   }}
                   className="px-4 py-2 transition-colors"
                   style={{
-                    background: apertureSelection === 'yes' ? '#7dd3fc' : 'transparent',
+                    background: apertureSelection === 'yes' ? PHOSPHOR_COLOR : 'transparent',
                     border: '1px solid #333',
                     fontFamily: 'VT323, monospace',
                     fontSize: '22px',
@@ -316,7 +349,7 @@ export function FullscreenTerminal() {
                   }}
                   className="px-4 py-2 transition-colors"
                   style={{
-                    background: apertureSelection === 'no' ? '#7dd3fc' : 'transparent',
+                    background: apertureSelection === 'no' ? PHOSPHOR_COLOR : 'transparent',
                     border: '1px solid #333',
                     fontFamily: 'VT323, monospace',
                     fontSize: '22px',
@@ -332,81 +365,122 @@ export function FullscreenTerminal() {
         </div>
       )}
 
-      {/* Terminal Window */}
-      <div className="relative w-full h-full flex flex-col">
+      {/* Terminal Window - retro frame */}
+      <div
+        className="relative w-full h-full flex flex-col border-2"
+        style={{
+          borderColor: PHOSPHOR_COLOR,
+          background: '#000000',
+          boxShadow: `0 0 20px ${PHOSPHOR_GLOW}, inset 0 0 60px rgba(0,0,0,0.9)`,
+        }}
+      >
         {/* Window Title Bar */}
-        <div 
-          className="flex items-center justify-between px-6 py-3"
-          style={{ 
-            background: '#0a0a0a',
-            borderBottom: '1px solid #1a1a1a',
+        <div
+          className="flex items-center justify-between px-4 py-2"
+          style={{
+            background: PHOSPHOR_DARK,
+            borderBottom: `1px solid ${PHOSPHOR_COLOR}`,
           }}
         >
-          <div className="flex items-center gap-3">
-            <div className="flex gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ background: '#ff5f56' }} />
-              <div className="w-3 h-3 rounded-full" style={{ background: '#ffbd2e' }} />
-              <div className="w-3 h-3 rounded-full" style={{ background: '#27c93f' }} />
-            </div>
+          <div className="flex gap-2">
+            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR_COLOR, background: 'transparent' }} />
+            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR_COLOR, background: 'transparent' }} />
+            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR_COLOR, background: 'transparent' }} />
           </div>
-          <span 
+          <span
             className="absolute left-1/2 -translate-x-1/2"
-            style={{ 
-              color: '#7dd3fc',
+            style={{
+              color: PHOSPHOR_COLOR,
               fontFamily: 'VT323, monospace',
-              fontSize: '20px',
+              fontSize: '22px',
+              textShadow: `0 0 8px ${PHOSPHOR_GLOW}`,
             }}
           >
             Command Prompt
           </span>
+          <div style={{ width: 36 }} />
         </div>
-        
+
         {/* Menu Bar */}
-        <div 
-          className="flex items-center justify-between px-6 py-2"
-          style={{ 
-            background: '#0a0a0a',
-            borderBottom: '1px solid #1a1a1a',
+        <div
+          className="flex items-center gap-6 px-6 py-2"
+          style={{
+            background: PHOSPHOR_DARK,
+            borderBottom: `1px solid ${PHOSPHOR_COLOR}`,
           }}
         >
           {['File', 'Edit', 'View', 'Terminal', 'Tabs', 'Help'].map((item) => (
             <button
               key={item}
               className="hover:opacity-80 transition-opacity"
-              style={{ 
-                color: '#7dd3fc',
+              style={{
+                color: PHOSPHOR_COLOR,
                 fontFamily: 'VT323, monospace',
                 fontSize: '20px',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
                 padding: 0,
+                textShadow: `0 0 6px ${PHOSPHOR_GLOW}`,
               }}
             >
               {item}
             </button>
           ))}
         </div>
-        
+
         {/* Terminal Content */}
-        <div 
+        <div
           ref={terminalRef}
-          tabIndex={0}
-          onKeyDown={handleKeyDown}
-          className="flex-1 overflow-auto p-8 outline-none"
-          style={{ 
+          data-terminal-scroll
+          className="flex-1 overflow-auto p-8 outline-none relative cursor-text"
+          style={{
             fontFamily: 'VT323, monospace',
             fontSize: '24px',
-            lineHeight: '1.4',
+            lineHeight: 1.4,
+            background: '#000000',
+            color: PHOSPHOR_COLOR,
           }}
+          onClick={() => inputRef.current?.focus()}
         >
+          <input
+            ref={inputRef}
+            type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            aria-label="Terminal input"
+            onKeyDown={handleKeyDown}
+            className="absolute inset-0 w-full opacity-0 cursor-text"
+            style={{
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+            }}
+          />
+          <style>{`
+            [data-terminal-scroll]::-webkit-scrollbar {
+              width: 12px;
+            }
+            [data-terminal-scroll]::-webkit-scrollbar-track {
+              background: #0a0a0a;
+            }
+            [data-terminal-scroll]::-webkit-scrollbar-thumb {
+              background: ${PHOSPHOR_DARK};
+              border: 1px solid ${PHOSPHOR_COLOR};
+            }
+            [data-terminal-scroll]::-webkit-scrollbar-thumb:hover {
+              background: ${PHOSPHOR_COLOR};
+            }
+          `}</style>
           <div className="max-w-full">
             {terminalHistory.map((line, index) => (
               <div
                 key={index}
                 style={{
-                  color: '#7dd3fc',
+                  color: PHOSPHOR_COLOR,
                   whiteSpace: 'pre',
+                  textShadow: `0 0 4px ${PHOSPHOR_GLOW}`,
                 }}
               >
                 {line}
@@ -414,24 +488,46 @@ export function FullscreenTerminal() {
             ))}
             <div
               style={{
-                color: '#7dd3fc',
+                color: PHOSPHOR_COLOR,
                 whiteSpace: 'pre',
                 position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                textShadow: `0 0 4px ${PHOSPHOR_GLOW}`,
               }}
             >
               {promptSymbol} {currentInput}
               <span
                 style={{
-                  color: 'rgba(125, 211, 252, 0.35)',
+                  color: 'rgba(107, 196, 212, 0.35)',
                   pointerEvents: 'none',
                 }}
               >
                 {ghostText}
               </span>
-              {showCursor && '█'}
+              {showCursor && (
+                <span
+                  className="inline-block align-middle ml-0.5"
+                  style={{
+                    width: '1ch',
+                    height: '1.2em',
+                    background: PHOSPHOR_COLOR,
+                    boxShadow: `0 0 6px ${PHOSPHOR_GLOW}`,
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>
+
+        {/* Bottom status bar */}
+        <div
+          className="h-2"
+          style={{
+            background: PHOSPHOR_DARK,
+            borderTop: `1px solid ${PHOSPHOR_COLOR}`,
+          }}
+        />
       </div>
     </div>
   );
