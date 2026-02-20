@@ -1,7 +1,27 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { LegendPanel } from './LegendPanel';
+
+const SUGGESTED_COMMANDS = [
+  'whoami',
+  'uname -a',
+  'login backdoor',
+  'bin/history',
+  'bin/LLLSDLaserControl -ok 1',
+  'access',
+  'clear',
+  'help',
+];
+
+const SEQUENTIAL_SUGGESTIONS = [
+  'whoami',
+  'uname -a',
+  'login backdoor',
+  'bin/history',
+  'bin/LLLSDLaserControl -ok 1',
+];
+
+const OUTPUT_STREAM_DELAY_MS = 90;
 
 const LASER_LOG_LINES = [
   'HV online............................. OK',
@@ -26,8 +46,10 @@ export function FullscreenTerminal() {
   const [terminalHistory, setTerminalHistory] = useState<string[]>([]);
   const [isBackdoorLoggedIn, setIsBackdoorLoggedIn] = useState(false);
   const [streamingLogIndex, setStreamingLogIndex] = useState<number | null>(null);
+  const [streamingOutput, setStreamingOutput] = useState<{ lines: string[]; index: number } | null>(null);
   const [showApertureDialog, setShowApertureDialog] = useState(false);
   const [apertureSelection, setApertureSelection] = useState<'yes' | 'no'>('yes');
+  const [suggestionStep, setSuggestionStep] = useState(0);
   const promptSymbol = isBackdoorLoggedIn ? '#' : '$';
   const terminalRef = useRef<HTMLDivElement>(null);
   const apertureDialogRef = useRef<HTMLDivElement>(null);
@@ -48,10 +70,32 @@ export function FullscreenTerminal() {
   }, []);
 
   useEffect(() => {
+    // Auto-scroll to bottom when content updates
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [terminalHistory, currentInput]);
+
+  useEffect(() => {
     if (showApertureDialog && apertureDialogRef.current) {
       apertureDialogRef.current.focus();
     }
   }, [showApertureDialog]);
+
+  useEffect(() => {
+    if (!streamingOutput) return;
+    const { lines, index } = streamingOutput;
+    if (index >= lines.length) {
+      setStreamingOutput(null);
+      setTerminalHistory(prev => [...prev, '']);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setTerminalHistory(prev => [...prev, lines[index]]);
+      setStreamingOutput({ lines, index: index + 1 });
+    }, OUTPUT_STREAM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [streamingOutput]);
 
   useEffect(() => {
     if (streamingLogIndex === null) return;
@@ -79,9 +123,28 @@ export function FullscreenTerminal() {
     }
   }, [apertureSelection]);
 
+  const getSuggestion = useCallback((input: string) => {
+    if (!input) {
+      const step = Math.min(suggestionStep, SEQUENTIAL_SUGGESTIONS.length - 1);
+      return SEQUENTIAL_SUGGESTIONS[step];
+    }
+    const lower = input.toLowerCase();
+    return SUGGESTED_COMMANDS.find(cmd => cmd.toLowerCase().startsWith(lower)) ?? null;
+  }, [suggestionStep]);
+
+  const suggestion = getSuggestion(currentInput);
+  const ghostText = suggestion && suggestion.length > currentInput.length
+    ? suggestion.slice(currentInput.length)
+    : '';
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showApertureDialog) {
       handleApertureKeyDown(e);
+      return;
+    }
+    if (e.key === 'Tab' && suggestion && ghostText) {
+      e.preventDefault();
+      setCurrentInput(suggestion);
       return;
     }
     if (e.key === 'Enter') {
@@ -102,80 +165,81 @@ export function FullscreenTerminal() {
   };
 
   const processCommand = (command: string) => {
-    const newHistory = [...terminalHistory, `${promptSymbol} ${command}`];
-    
-    // Add command output based on what was entered
+    const baseHistory = [...terminalHistory, `${promptSymbol} ${command}`];
+
+    const stream = (lines: string[], sideEffects?: () => void) => {
+      setTerminalHistory(baseHistory);
+      sideEffects?.();
+      setStreamingOutput({ lines, index: 0 });
+    };
+
     switch (command.toLowerCase()) {
       case 'whoami':
-        newHistory.push('Flynn');
-        break;
+        stream(['Flynn'], () => setSuggestionStep(1));
+        return;
       case 'uname -a':
-        newHistory.push('SolarOS 4.0.1 Generic_50823-02 sun4m i386');
-        newHistory.push('Unknown.Unknown');
-        break;
+        stream(['SolarOS 4.0.1 Generic_50823-02 sun4m i386', 'Unknown.Unknown'], () => setSuggestionStep(2));
+        return;
       case 'login backdoor':
-        newHistory.push('No home directory specified in password file!');
-        newHistory.push('Logging in with home=/');
-        setIsBackdoorLoggedIn(true);
-        break;
+        stream(['No home directory specified in password file!', 'Logging in with home=/'], () => {
+          setIsBackdoorLoggedIn(true);
+          setSuggestionStep(3);
+        });
+        return;
       case 'bin/lllsdlasercontrol -ok 1':
         if (isBackdoorLoggedIn) {
-          setTerminalHistory(newHistory);
+          setSuggestionStep(4);
+          setTerminalHistory(baseHistory);
           setStreamingLogIndex(0);
-          return;
         } else {
-          newHistory.push(`Command not found: bin/LLLSDLaserControl -ok 1`);
-          newHistory.push('Type "help" for available commands');
+          stream([`Command not found: bin/LLLSDLaserControl -ok 1`, 'Type "help" for available commands']);
         }
-        break;
+        return;
       case 'bin/history':
         if (isBackdoorLoggedIn) {
-          newHistory.push('  488  cd /opt/LLL/controller/laser/');
-          newHistory.push('  489  vi LLLSDLaserControl.c');
-          newHistory.push('  490  make');
-          newHistory.push('  491  make install');
-          newHistory.push('  492  ./sanity_check');
-          newHistory.push('  493  ./configure -o test.cfs');
-          newHistory.push('  494  vi test.cfs');
-          newHistory.push('  495  vi ~/last_will_and_testament.txt');
-          newHistory.push('  496  cat /proc/machinfo');
-          newHistory.push('  497  ps -e -x -u');
-          newHistory.push('  498  kill 2007');
-          newHistory.push('  499  kill 2208');
-          newHistory.push('  500  ps -e -x -u');
-          newHistory.push('  501  cd /opt/LLL/run/ok');
-          newHistory.push('  502  LLLSDLaserControl -ok 1');
+          stream([
+            '  488  cd /opt/LLL/controller/laser/',
+            '  489  vi LLLSDLaserControl.c',
+            '  490  make',
+            '  491  make install',
+            '  492  ./sanity_check',
+            '  493  ./configure -o test.cfs',
+            '  494  vi test.cfs',
+            '  495  vi ~/last_will_and_testament.txt',
+            '  496  cat /proc/machinfo',
+            '  497  ps -e -x -u',
+            '  498  kill 2007',
+            '  499  kill 2208',
+            '  500  ps -e -x -u',
+            '  501  cd /opt/LLL/run/ok',
+            '  502  LLLSDLaserControl -ok 1',
+          ], () => setSuggestionStep(4));
         } else {
-          newHistory.push(`Command not found: bin/history`);
-          newHistory.push('Type "help" for available commands');
+          stream([`Command not found: bin/history`, 'Type "help" for available commands']);
         }
-        break;
+        return;
       case 'access':
-        newHistory.push('ACCESS GRANTED. ENTERING THE GRID...');
-        // TODO: Navigate to portfolio
-        break;
+        stream(['ACCESS GRANTED. ENTERING THE GRID...']);
+        return;
       case 'clear':
         setTerminalHistory([]);
         return;
       case 'help':
-        newHistory.push('Available commands:');
-        newHistory.push('  whoami         - Display current user');
-        newHistory.push('  uname -a       - System information');
-        newHistory.push('  login backdoor - Access backdoor');
-        newHistory.push('  bin/history    - View command history (after login backdoor)');
-        newHistory.push('  bin/LLLSDLaserControl -ok 1 - Laser control (after login backdoor)');
-        newHistory.push('  access         - Enter the website');
-        newHistory.push('  clear          - Clear terminal screen');
-        newHistory.push('  help           - Show this help message');
-        break;
+        stream([
+          'Available commands:',
+          '  whoami         - Display current user',
+          '  uname -a       - System information',
+          '  login backdoor - Access backdoor',
+          '  bin/history    - View command history (after login backdoor)',
+          '  bin/LLLSDLaserControl -ok 1 - Laser control (after login backdoor)',
+          '  access         - Enter the website',
+          '  clear          - Clear terminal screen',
+          '  help           - Show this help message',
+        ]);
+        return;
       default:
-        newHistory.push(`Command not found: ${command}`);
-        newHistory.push('Type "help" for available commands');
-        break;
+        stream([`Command not found: ${command}`, 'Type "help" for available commands']);
     }
-    
-    newHistory.push(''); // Add blank line
-    setTerminalHistory(newHistory);
   };
 
   return (
@@ -268,11 +332,6 @@ export function FullscreenTerminal() {
         </div>
       )}
 
-      {/* Legend Panel */}
-      <div className="absolute top-24 right-8 z-10 w-80">
-        <LegendPanel />
-      </div>
-      
       {/* Terminal Window */}
       <div className="relative w-full h-full flex flex-col">
         {/* Window Title Bar */}
@@ -357,9 +416,19 @@ export function FullscreenTerminal() {
               style={{
                 color: '#7dd3fc',
                 whiteSpace: 'pre',
+                position: 'relative',
               }}
             >
-              {promptSymbol} {currentInput}{showCursor && '█'}
+              {promptSymbol} {currentInput}
+              <span
+                style={{
+                  color: 'rgba(125, 211, 252, 0.35)',
+                  pointerEvents: 'none',
+                }}
+              >
+                {ghostText}
+              </span>
+              {showCursor && '█'}
             </div>
           </div>
         </div>
