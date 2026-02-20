@@ -2,10 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'motion/react';
 
-const PHOSPHOR_COLOR = '#6bc4d4';
-const PHOSPHOR_DARK = '#2d6b75';
-const PHOSPHOR_GLOW = 'rgba(107, 196, 212, 0.4)';
+/* Theme via CSS variables (see globals.css) */
+const PHOSPHOR = 'var(--terminal-phosphor)';
+const PHOSPHOR_DIM = 'var(--terminal-phosphor-dim)';
+const PHOSPHOR_GLOW = 'var(--terminal-phosphor-glow)';
+const CHROME_BG = 'var(--terminal-chrome)';
+const CHROME_DARK = 'var(--terminal-dark)';
 
 const SUGGESTED_COMMANDS = [
   'whoami',
@@ -267,133 +271,313 @@ export function FullscreenTerminal() {
     <div
       className="relative w-screen h-screen overflow-hidden"
       style={{
-        background: '#030405',
-        boxShadow: 'inset 0 0 100px rgba(0,0,0,0.9)',
+        background: 'var(--terminal-bg)',
+        fontFamily: 'var(--font-terminal)',
       }}
     >
-      {/* CRT scanlines overlay */}
+      {/* Layered atmospheric background */}
       <div
-        className="absolute inset-0 pointer-events-none z-20 opacity-[0.06]"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 3px)',
+          background: `
+            radial-gradient(ellipse 120% 100% at 50% 20%, rgba(15, 35, 55, 0.6) 0%, transparent 50%),
+            radial-gradient(ellipse 80% 60% at 70% 80%, rgba(5, 20, 35, 0.4) 0%, transparent 50%),
+            linear-gradient(180deg, var(--terminal-darker) 0%, var(--terminal-bg) 40%, var(--terminal-bg) 100%)
+          `,
+        }}
+      />
+      {/* Vignette */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, rgba(0,0,0,0.7) 100%)',
+        }}
+      />
+      {/* Film grain overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.06]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+        }}
+      />
+      {/* CRT scanlines */}
+      <div
+        className="absolute inset-0 pointer-events-none z-20"
+        style={{
+          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.35) 2px, rgba(0,0,0,0.35) 3px)',
+          opacity: 0.15,
+        }}
+      />
+      {/* CRT phosphor grid */}
+      <div
+        className="absolute inset-0 pointer-events-none z-20"
+        style={{
+          backgroundImage: `
+            repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(93,217,239,0.015) 1px, rgba(93,217,239,0.015) 2px),
+            repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(93,217,239,0.012) 1px, rgba(93,217,239,0.012) 2px)
+          `,
+          backgroundSize: '2px 2px',
         }}
       />
       {/* Aperture Clear Overlay */}
-      {showApertureDialog && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
-          onClick={() => {}}
-        >
-          <div
-            ref={apertureDialogRef}
-            className="flex flex-col overflow-hidden rounded-sm outline-none"
-            style={{
-              background: '#e6c200',
-              boxShadow: '0 0 0 2px #333, 0 8px 32px rgba(0,0,0,0.5)',
-              minWidth: 320,
-            }}
-            onKeyDown={handleApertureKeyDown}
-            tabIndex={0}
+      <AnimatePresence>
+        {showApertureDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 flex items-center justify-center z-50"
+            style={{ background: 'rgba(0, 0, 0, 0.72)' }}
           >
-            {/* Window title bar */}
-            <div
-              className="flex items-center justify-between px-3 py-1.5"
+            <motion.div
+              ref={apertureDialogRef}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+              className="flex flex-col outline-none"
               style={{
-                background: '#d4d4d4',
-                borderBottom: '1px solid #999',
-                fontFamily: 'VT323, monospace',
-                fontSize: '16px',
+                fontFamily: 'var(--font-terminal)',
+                minWidth: 520,
+                maxWidth: 560,
+                width: '45vw',
+                position: 'relative',
               }}
+              onKeyDown={handleApertureKeyDown}
+              tabIndex={0}
             >
-              <span style={{ color: '#333' }}>System</span>
-              <div className="flex gap-1">
-                <div className="w-3 h-3 rounded-sm" style={{ background: '#ccc' }} />
-                <div className="w-3 h-3 rounded-sm" style={{ background: '#ccc' }} />
-                <div className="w-3 h-3 rounded-sm" style={{ background: '#e74c3c' }} />
-              </div>
-            </div>
-            {/* Dialog content */}
-            <div
-              className="p-6 flex flex-col items-center gap-6"
-              style={{
-                background: '#e6c200',
-                fontFamily: 'VT323, monospace',
-                fontSize: '24px',
-                color: '#1a1a1a',
-              }}
-            >
-              <p>Aperture Clear?</p>
-              <div className="flex gap-6">
-                <button
-                  onClick={() => {
-                    setApertureSelection('yes');
-                    handleApertureYes();
-                  }}
-                  className="px-4 py-2 transition-colors"
-                  style={{
-                    background: apertureSelection === 'yes' ? PHOSPHOR_COLOR : 'transparent',
-                    border: '1px solid #333',
-                    fontFamily: 'VT323, monospace',
-                    fontSize: '22px',
-                    cursor: 'pointer',
-                    color: '#1a1a1a',
+              <div
+                style={{
+                  borderRadius: 6,
+                  background: '#b8a830',
+                  boxShadow: '0 12px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,0,0,0.2), inset 0 0 80px rgba(0,0,0,0.12)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div>
+                  {/* Title bar — matches main terminal theme */}
+                  <div
+                    className="flex items-center justify-between"
+                    style={{
+                      borderBottom: '2px solid #8a7e45',
+                      padding: '3px 8px',
+                      background: CHROME_BG,
+                    borderTopLeftRadius: 2,
+                    borderTopRightRadius: 2,
                   }}
                 >
-                  &lt; Yes &gt;
-                </button>
-                <button
-                  onClick={() => {
-                    setApertureSelection('no');
-                    setShowApertureDialog(false);
-                    setTerminalHistory(prev => [...prev, 'Aperture closed.', '']);
-                  }}
-                  className="px-4 py-2 transition-colors"
-                  style={{
-                    background: apertureSelection === 'no' ? PHOSPHOR_COLOR : 'transparent',
-                    border: '1px solid #333',
-                    fontFamily: 'VT323, monospace',
-                    fontSize: '22px',
-                    cursor: 'pointer',
-                    color: '#1a1a1a',
-                  }}
-                >
-                  &lt; No &gt;
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                  {/* Left window controls */}
+                  <div className="flex items-center gap-1">
+                    <div style={{
+                      width: 12, height: 12,
+                      border: `1.5px solid ${PHOSPHOR}`,
+                      borderRadius: 1,
+                      background: 'transparent',
+                    }} />
+                    <div style={{
+                      width: 12, height: 12,
+                      border: `1.5px solid ${PHOSPHOR}`,
+                      borderRadius: 1,
+                      background: 'transparent',
+                    }} />
+                  </div>
 
-      {/* Terminal Window - retro frame */}
-      <div
-        className="relative w-full h-full flex flex-col border-2"
+                  {/* Title with dashed line decoration */}
+                  <div
+                    className="flex items-center gap-2 flex-1 justify-center"
+                    style={{
+                      fontSize: 16,
+                      fontFamily: 'var(--font-chrome)',
+                      color: PHOSPHOR,
+                      letterSpacing: '0.5px',
+                      textShadow: `0 0 6px ${PHOSPHOR_GLOW}`,
+                    }}
+                  >
+                    <span style={{
+                      flex: 1, height: 1,
+                      borderBottom: `1px dashed ${PHOSPHOR}`,
+                      marginRight: 8,
+                      opacity: 0.5,
+                    }} />
+                    <span>Confirmation Alert</span>
+                    <span style={{
+                      flex: 1, height: 1,
+                      borderBottom: `1px dashed ${PHOSPHOR}`,
+                      marginLeft: 8,
+                      opacity: 0.5,
+                    }} />
+                  </div>
+
+                  {/* Right window control */}
+                  <div style={{
+                    width: 12, height: 12,
+                    border: `1.5px solid ${PHOSPHOR}`,
+                    borderRadius: 1,
+                    background: 'transparent',
+                  }} />
+                </div>
+
+                {/* Dialog body */}
+                <div
+                  className="flex flex-col items-center"
+                  style={{
+                    padding: '20px 48px 18px',
+                    background: `
+                      radial-gradient(ellipse at center, rgba(200,180,60,0.2) 0%, transparent 70%),
+                      linear-gradient(180deg, #c0b030 0%, #a89820 50%, #b0a028 100%)
+                    `,
+                    position: 'relative',
+                  }}
+                >
+                  {/* Noise/grain texture overlay */}
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      backgroundImage: `
+                        repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.03) 1px, rgba(0,0,0,0.03) 2px),
+                        repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 3px)
+                      `,
+                      backgroundSize: '3px 3px, 4px 4px',
+                    }}
+                  />
+
+                  {/* Question text */}
+                  <p style={{
+                    fontSize: 30,
+                    color: '#2a2508',
+                    letterSpacing: '2px',
+                    marginBottom: 18,
+                    textShadow: '1px 1px 0 rgba(255,255,255,0.15)',
+                    position: 'relative',
+                  }}>
+                    Aperture Clear?
+                  </p>
+
+                  {/* Buttons row */}
+                    <div className="flex items-center" style={{ gap: 80, position: 'relative' }}>
+                    <div
+                      onClick={() => {
+                        setApertureSelection('yes');
+                        handleApertureYes();
+                      }}
+                      className="flex items-center"
+                      style={{
+                        fontFamily: 'VT323, monospace',
+                        fontSize: 24,
+                        cursor: 'pointer',
+                        color: '#4a4210',
+                        gap: 4,
+                      }}
+                    >
+                      <span>&lt;</span>
+                      <span
+                        className="transition-colors"
+                        style={{
+                          background: apertureSelection === 'yes'
+                            ? 'linear-gradient(180deg, #5090cc 0%, #3870a8 100%)'
+                            : 'transparent',
+                          color: apertureSelection === 'yes' ? '#e8e8e8' : '#4a4210',
+                          padding: '1px 6px',
+                          borderRadius: 2,
+                          textDecoration: 'underline',
+                          textUnderlineOffset: '3px',
+                          textShadow: apertureSelection === 'yes'
+                            ? '0 1px 2px rgba(0,0,0,0.4)'
+                            : 'none',
+                          boxShadow: apertureSelection === 'yes'
+                            ? 'inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.3)'
+                            : 'none',
+                        }}
+                      >Yes</span>
+                      <span>&gt;</span>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setApertureSelection('no');
+                        setShowApertureDialog(false);
+                        setTerminalHistory(prev => [...prev, 'Aperture closed.', '']);
+                      }}
+                      className="flex items-center"
+                      style={{
+                        fontFamily: 'VT323, monospace',
+                        fontSize: 24,
+                        cursor: 'pointer',
+                        color: '#4a4210',
+                        gap: 4,
+                      }}
+                    >
+                      <span>&lt;</span>
+                      <span
+                        className="transition-colors"
+                        style={{
+                          background: apertureSelection === 'no'
+                            ? 'linear-gradient(180deg, #5090cc 0%, #3870a8 100%)'
+                            : 'transparent',
+                          color: apertureSelection === 'no' ? '#e8e8e8' : '#4a4210',
+                          padding: '1px 6px',
+                          borderRadius: 2,
+                          textDecoration: 'underline',
+                          textUnderlineOffset: '3px',
+                          textShadow: apertureSelection === 'no'
+                            ? '0 1px 2px rgba(0,0,0,0.4)'
+                            : 'none',
+                          boxShadow: apertureSelection === 'no'
+                            ? 'inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.3)'
+                            : 'none',
+                        }}
+                      >No</span>
+                      <span>&gt;</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Terminal Window — floating cinematic frame */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
+        className="absolute inset-4 sm:inset-8 flex flex-col"
         style={{
-          borderColor: PHOSPHOR_COLOR,
-          background: '#000000',
-          boxShadow: `0 0 20px ${PHOSPHOR_GLOW}, inset 0 0 60px rgba(0,0,0,0.9)`,
+          border: `2px solid ${PHOSPHOR}`,
+          background: 'var(--terminal-darker)',
+          boxShadow: `
+            0 0 24px ${PHOSPHOR_GLOW},
+            0 0 60px rgba(93, 217, 239, 0.08),
+            0 24px 80px rgba(0,0,0,0.6),
+            inset 0 0 80px rgba(0,0,0,0.95),
+            inset 0 1px 0 rgba(93, 217, 239, 0.06)
+          `,
         }}
       >
         {/* Window Title Bar */}
         <div
           className="flex items-center justify-between px-4 py-2"
           style={{
-            background: PHOSPHOR_DARK,
-            borderBottom: `1px solid ${PHOSPHOR_COLOR}`,
+            background: CHROME_BG,
+            borderBottom: `1px solid ${PHOSPHOR}`,
           }}
         >
           <div className="flex gap-2">
-            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR_COLOR, background: 'transparent' }} />
-            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR_COLOR, background: 'transparent' }} />
-            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR_COLOR, background: 'transparent' }} />
+            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR, background: 'transparent' }} />
+            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR, background: 'transparent' }} />
+            <div className="w-2.5 h-2.5 border" style={{ borderColor: PHOSPHOR, background: 'transparent' }} />
           </div>
           <span
             className="absolute left-1/2 -translate-x-1/2"
             style={{
-              color: PHOSPHOR_COLOR,
-              fontFamily: 'VT323, monospace',
-              fontSize: '22px',
-              textShadow: `0 0 8px ${PHOSPHOR_GLOW}`,
+              color: PHOSPHOR,
+              fontFamily: 'var(--font-chrome)',
+              fontSize: '1.125rem',
+              fontWeight: 500,
+              letterSpacing: '0.08em',
+              textShadow: `0 0 10px ${PHOSPHOR_GLOW}`,
             }}
           >
             Command Prompt
@@ -405,18 +589,22 @@ export function FullscreenTerminal() {
         <div
           className="flex items-center gap-6 px-6 py-2"
           style={{
-            background: PHOSPHOR_DARK,
-            borderBottom: `1px solid ${PHOSPHOR_COLOR}`,
+            background: CHROME_BG,
+            borderBottom: `1px solid ${PHOSPHOR}`,
           }}
         >
-          {['File', 'Edit', 'View', 'Terminal', 'Tabs', 'Help'].map((item) => (
-            <button
+          {['File', 'Edit', 'View', 'Terminal', 'Tabs', 'Help'].map((item, i) => (
+            <motion.button
               key={item}
-              className="hover:opacity-80 transition-opacity"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 + i * 0.04 }}
+              whileHover={{ scale: 1.02 }}
+              className="transition-colors duration-200"
               style={{
-                color: PHOSPHOR_COLOR,
-                fontFamily: 'VT323, monospace',
-                fontSize: '20px',
+                color: PHOSPHOR,
+                fontFamily: 'var(--font-chrome)',
+                fontSize: '0.875rem',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
@@ -425,7 +613,7 @@ export function FullscreenTerminal() {
               }}
             >
               {item}
-            </button>
+            </motion.button>
           ))}
         </div>
 
@@ -435,11 +623,11 @@ export function FullscreenTerminal() {
           data-terminal-scroll
           className="flex-1 overflow-auto p-8 outline-none relative cursor-text"
           style={{
-            fontFamily: 'VT323, monospace',
-            fontSize: '24px',
-            lineHeight: 1.4,
-            background: '#000000',
-            color: PHOSPHOR_COLOR,
+            fontFamily: 'var(--font-terminal)',
+            fontSize: '1.5rem',
+            lineHeight: 1.5,
+            background: 'var(--terminal-darker)',
+            color: PHOSPHOR,
           }}
           onClick={() => inputRef.current?.focus()}
         >
@@ -460,59 +648,64 @@ export function FullscreenTerminal() {
           />
           <style>{`
             [data-terminal-scroll]::-webkit-scrollbar {
-              width: 12px;
+              width: 10px;
             }
             [data-terminal-scroll]::-webkit-scrollbar-track {
-              background: #0a0a0a;
+              background: var(--terminal-chrome);
             }
             [data-terminal-scroll]::-webkit-scrollbar-thumb {
-              background: ${PHOSPHOR_DARK};
-              border: 1px solid ${PHOSPHOR_COLOR};
+              background: var(--terminal-dark);
+              border: 1px solid var(--terminal-phosphor);
             }
             [data-terminal-scroll]::-webkit-scrollbar-thumb:hover {
-              background: ${PHOSPHOR_COLOR};
+              background: var(--terminal-phosphor);
             }
           `}</style>
           <div className="max-w-full">
             {terminalHistory.map((line, index) => (
-              <div
+              <motion.div
                 key={index}
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
                 style={{
-                  color: PHOSPHOR_COLOR,
+                  color: PHOSPHOR,
                   whiteSpace: 'pre',
-                  textShadow: `0 0 4px ${PHOSPHOR_GLOW}`,
+                  textShadow: `0 0 4px ${PHOSPHOR_GLOW}, 0 0 12px rgba(93, 217, 239, 0.08)`,
                 }}
               >
                 {line}
-              </div>
+              </motion.div>
             ))}
             <div
               style={{
-                color: PHOSPHOR_COLOR,
+                color: PHOSPHOR,
                 whiteSpace: 'pre',
                 position: 'relative',
                 display: 'inline-flex',
                 alignItems: 'center',
-                textShadow: `0 0 4px ${PHOSPHOR_GLOW}`,
+                textShadow: `0 0 4px ${PHOSPHOR_GLOW}, 0 0 12px rgba(93, 217, 239, 0.08)`,
               }}
             >
               {promptSymbol} {currentInput}
               <span
                 style={{
-                  color: 'rgba(107, 196, 212, 0.35)',
+                  color: PHOSPHOR_DIM,
                   pointerEvents: 'none',
                 }}
               >
                 {ghostText}
               </span>
               {showCursor && (
-                <span
+                <motion.span
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
                   className="inline-block align-middle ml-0.5"
                   style={{
                     width: '1ch',
                     height: '1.2em',
-                    background: PHOSPHOR_COLOR,
-                    boxShadow: `0 0 6px ${PHOSPHOR_GLOW}`,
+                    background: PHOSPHOR,
+                    boxShadow: `0 0 10px ${PHOSPHOR_GLOW}, 0 0 24px rgba(93, 217, 239, 0.2)`,
                   }}
                 />
               )}
@@ -522,13 +715,13 @@ export function FullscreenTerminal() {
 
         {/* Bottom status bar */}
         <div
-          className="h-2"
+          className="h-1.5"
           style={{
-            background: PHOSPHOR_DARK,
-            borderTop: `1px solid ${PHOSPHOR_COLOR}`,
+            background: CHROME_BG,
+            borderTop: `1px solid ${PHOSPHOR}`,
           }}
         />
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,9 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=VT323&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Terminal / Cinematic theme */
+  --terminal-phosphor: #5dd9ef;
+  --terminal-phosphor-dim: rgba(93, 217, 239, 0.35);
+  --terminal-phosphor-glow: rgba(93, 217, 239, 0.45);
+  --terminal-dark: #0d1922;
+  --terminal-darker: #050a0e;
+  --terminal-bg: #020304;
+  --terminal-chrome: #0a1420;
+  --terminal-accent-warm: #e8a838;
+  --font-terminal: 'VT323', 'IBM Plex Mono', ui-monospace, monospace;
+  --font-chrome: 'IBM Plex Mono', 'VT323', ui-monospace, monospace;
   --font-size: 16px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
