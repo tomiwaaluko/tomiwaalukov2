@@ -2,7 +2,7 @@ const commands = [
   { cmd: '1. whoami', hint: 'Identify yourself' },
   { cmd: '2. uname -a', hint: 'Check system info' },
   { cmd: '3. login backdoor', hint: 'Access backdoor' },
-  { cmd: '4. # bin/history', hint: 'View command history' },
+  { cmd: '4. bin/history', hint: 'View command history' },
   { cmd: '5. access', hint: 'Enter the website' },
 ];
 
@@ -47,7 +47,7 @@ export function LegendPanel() {
                 fontSize: '20px',
               }}
             >
-              $ {item.cmd}
+              {item.cmd}
             </div>
             <div 
               className="pl-4 opacity-70"

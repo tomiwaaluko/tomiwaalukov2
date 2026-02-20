@@ -11,3 +11,5 @@ build
 # Misc
 .DS_Store
 *.pem
+
+*.md
